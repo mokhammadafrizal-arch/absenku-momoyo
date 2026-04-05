@@ -848,11 +848,21 @@ function ownerTab(t){
   if(t==='rekap'){
     // Populate rekap outlet filter
     const sel=document.getElementById('rekap-outlet-filter');
-    if(sel && sel.options.length<=1){
+    sel.innerHTML='<option value="">Semua outlet</option>';
+    if(OUTLETS && OUTLETS.length>0){
       OUTLETS.forEach(o=>{
         const op=document.createElement('option');
         op.value=o.nama; op.textContent=o.nama;
         sel.appendChild(op);
+      });
+    } else {
+      // Fallback: ambil dari Supabase
+      sbGet('outlets','order=id').then(outlets=>{
+        if(outlets) outlets.forEach(o=>{
+          const op=document.createElement('option');
+          op.value=o.nama; op.textContent=o.nama;
+          sel.appendChild(op);
+        });
       });
     }
     renderRekapBulanan();
