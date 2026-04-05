@@ -843,7 +843,25 @@ async function doLogin(){
 function doLogout(){document.getElementById('login-wrap').style.display='flex';document.getElementById('main').style.display='none';}
 function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
 function crewTab(t){showScreen({home:'sc-home',izin:'sc-izin',profil:'sc-profil'}[t]);if(t==='profil')renderProfil();}
-function ownerTab(t){showScreen({home:'sc-owner-home',notif:'sc-owner-notif',rekap:'sc-owner-rekap',settings:'sc-owner-settings'}[t]);}
+function ownerTab(t){
+  showScreen({home:'sc-owner-home',notif:'sc-owner-notif',rekap:'sc-owner-rekap',settings:'sc-owner-settings'}[t]);
+  if(t==='rekap'){
+    // Populate rekap outlet filter
+    const sel=document.getElementById('rekap-outlet-filter');
+    if(sel && sel.options.length<=1){
+      OUTLETS.forEach(o=>{
+        const op=document.createElement('option');
+        op.value=o.nama; op.textContent=o.nama;
+        sel.appendChild(op);
+      });
+    }
+    renderRekapBulanan();
+  }
+  if(t==='settings'){
+    initInsentifDropdown();
+    initRekapOutletFilter();
+  }
+}
 
 // ===== TODAY =====
 function updateToday(){
@@ -1241,6 +1259,7 @@ function initRekapOutletFilter() {
     op.value = o.nama; op.textContent = o.nama;
     sel.appendChild(op);
   });
+  sel.onchange = renderRekapBulanan;
   // Also populate ins-outlet if empty
   const ins = document.getElementById('ins-outlet');
   if(ins && ins.options.length <= 1) {
