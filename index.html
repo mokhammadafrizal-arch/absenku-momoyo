@@ -433,8 +433,8 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
     <div class="abox abox-ok" id="alert-ok">✅ Lokasi terverifikasi — kamu ada di area outlet.</div>
     <div class="field">
       <label class="lbl">Foto Selfie</label>
-      <input type="file" id="file-foto" accept="image/jpeg" capture="user" onchange="previewFoto(event)" onclick="this.value=''"><!-- live camera only -->
-      <div class="foto-area" id="foto-box" onclick="document.getElementById('file-foto').click()">
+      <input type="file" id="file-foto" accept="image/*" capture="environment" onchange="previewFoto(event)" style="display:none">
+      <div class="foto-area" id="foto-box" onclick="bukaBukaKamera()">
         <span style="font-size:22px">📷</span><span>Ketuk untuk ambil foto selfie</span>
       </div>
     </div>
@@ -1084,8 +1084,24 @@ function openClock(type){
 
 let currentFotoBase64='';
 
+// Buka kamera — reset value dulu supaya onchange selalu trigger
+function bukaBukaKamera() {
+  const inp = document.getElementById('file-foto');
+  inp.value = '';
+  inp.click();
+}
+
 function previewFoto(e){
   const file=e.target.files[0]; if(!file)return;
+
+  // Block foto dari galeri — harus fresh dari kamera (lastModified dalam 60 detik terakhir)
+  const umurDetik = (Date.now() - file.lastModified) / 1000;
+  if(umurDetik > 60) {
+    showToast('❌ Harus foto langsung dari kamera, bukan galeri!');
+    e.target.value = '';
+    return;
+  }
+
   const r=new FileReader();
   r.onload=ev=>{
     const dataUrl=ev.target.result;
@@ -1795,35 +1811,83 @@ function kirimKeSheetsFallback(data) {
     body: JSON.stringify(data)
   }).catch(e => console.log('Fallback juga gagal:', e));
 }
+let _clockSubmitting = false;
+
 function submitClock(){
+  // Anti double-tap: block kalau sedang proses
+  if(_clockSubmitting) return;
+  _clockSubmitting = true;
+  const btnSubmit = document.getElementById('btn-submit-clock');
+  btnSubmit.disabled = true;
+  btnSubmit.textContent = 'Menyimpan...';
+
   const jam=getJam();
   const shift=getShift(user.outlet,user.nama);
   const o=OUTLETS.find(x=>x.nama===user.outlet);
   let idx=ABSENSI.findIndex(a=>a.nama===user.nama&&a.tgl===today());
   if(clockType==='in'){
-    if(idx>=0) ABSENSI[idx].clockIn=jam;
-    else ABSENSI.push({nama:user.nama,outlet:user.outlet,status:'masuk',clockIn:jam,clockOut:null,tgl:today(),lemburJam:0,shift:shift?shift.id:''});
-    const perbantuanOutlet = isPerbantuan ? document.getElementById('perbantuan-outlet').value : '';
-    const outletGPS = isPerbantuan && perbantuanOutlet
-      ? OUTLETS.find(x=>x.nama===perbantuanOutlet)
-      : o;
-    const jarakCI = currentGPS&&outletGPS?Math.round(dist(currentGPS.lat,currentGPS.lng,outletGPS.lat,outletGPS.lng)):'';
-    kirimKeSheets({tipe:'clockin',tanggal:today(),nama:user.nama,outlet:user.outlet,
-      shift:shift?shift.label:'',clockIn:jam,clockOut:'',
-      gpsLat:currentGPS?currentGPS.lat:'',gpsLng:currentGPS?currentGPS.lng:'',
-      jarak:jarakCI, status:'masuk',lemburJam:0,fotoBase64:currentFotoBase64,
-      outletAsal:user.outlet, perbantuanKe:perbantuanOutlet});
-    // Simpan ke Supabase
-    sbInsert('absensi', {
-      tanggal:today(), nama:user.nama, outlet_nama:user.outlet,
-      shift:shift?shift.label:'', clock_in:jam, clock_out:null,
-      gps_lat:currentGPS?currentGPS.lat:null, gps_lng:currentGPS?currentGPS.lng:null,
-      jarak:jarakCI||null, status:'masuk', lembur_jam:0,
-      outlet_asal:user.outlet, perbantuan_ke:perbantuanOutlet||null
+    // Cek duplikat di Supabase dulu sebelum insert
+    sbGet('absensi', 'nama=eq.'+encodeURIComponent(user.nama)+'&tanggal=eq.'+today()).then(existing => {
+      if(existing && existing.length > 0) {
+        showToast('⚠️ Kamu sudah clock in hari ini!');
+        btnSubmit.textContent = 'Simpan';
+        _clockSubmitting = false;
+        checkReady();
+        return;
+      }
+      // Lanjut clock in
+      if(idx>=0) ABSENSI[idx].clockIn=jam;
+      else ABSENSI.push({nama:user.nama,outlet:user.outlet,status:'masuk',clockIn:jam,clockOut:null,tgl:today(),lemburJam:0,shift:shift?shift.id:''});
+      const perbantuanOutlet = isPerbantuan ? document.getElementById('perbantuan-outlet').value : '';
+      const outletGPS = isPerbantuan && perbantuanOutlet
+        ? OUTLETS.find(x=>x.nama===perbantuanOutlet)
+        : o;
+      const jarakCI = currentGPS&&outletGPS?Math.round(dist(currentGPS.lat,currentGPS.lng,outletGPS.lat,outletGPS.lng)):'';
+      kirimKeSheets({tipe:'clockin',tanggal:today(),nama:user.nama,outlet:user.outlet,
+        shift:shift?shift.label:'',clockIn:jam,clockOut:'',
+        gpsLat:currentGPS?currentGPS.lat:'',gpsLng:currentGPS?currentGPS.lng:'',
+        jarak:jarakCI, status:'masuk',lemburJam:0,fotoBase64:currentFotoBase64,
+        outletAsal:user.outlet, perbantuanKe:perbantuanOutlet});
+      sbInsert('absensi', {
+        tanggal:today(), nama:user.nama, outlet_nama:user.outlet,
+        shift:shift?shift.label:'', clock_in:jam, clock_out:null,
+        gps_lat:currentGPS?currentGPS.lat:null, gps_lng:currentGPS?currentGPS.lng:null,
+        jarak:jarakCI||null, status:'masuk', lembur_jam:0,
+        outlet_asal:user.outlet, perbantuan_ke:perbantuanOutlet||null
+      });
+      showToast('Clock in berhasil! '+jam+(perbantuanOutlet?' (Perbantuan)':'')+' ✅');
+      currentFotoBase64='';
+      closeModal('modal-clock'); updateToday(); renderRiwayat();
+      btnSubmit.textContent = 'Simpan';
+      _clockSubmitting = false;
+    }).catch(() => {
+      // Kalau cek gagal, tetap lanjut (fallback graceful)
+      if(idx>=0) ABSENSI[idx].clockIn=jam;
+      else ABSENSI.push({nama:user.nama,outlet:user.outlet,status:'masuk',clockIn:jam,clockOut:null,tgl:today(),lemburJam:0,shift:shift?shift.id:''});
+      const perbantuanOutlet = isPerbantuan ? document.getElementById('perbantuan-outlet').value : '';
+      const outletGPS = isPerbantuan && perbantuanOutlet ? OUTLETS.find(x=>x.nama===perbantuanOutlet) : o;
+      const jarakCI = currentGPS&&outletGPS?Math.round(dist(currentGPS.lat,currentGPS.lng,outletGPS.lat,outletGPS.lng)):'';
+      kirimKeSheets({tipe:'clockin',tanggal:today(),nama:user.nama,outlet:user.outlet,
+        shift:shift?shift.label:'',clockIn:jam,clockOut:'',
+        gpsLat:currentGPS?currentGPS.lat:'',gpsLng:currentGPS?currentGPS.lng:'',
+        jarak:jarakCI, status:'masuk',lemburJam:0,fotoBase64:currentFotoBase64,
+        outletAsal:user.outlet, perbantuanKe:perbantuanOutlet});
+      sbInsert('absensi', {
+        tanggal:today(), nama:user.nama, outlet_nama:user.outlet,
+        shift:shift?shift.label:'', clock_in:jam, clock_out:null,
+        gps_lat:currentGPS?currentGPS.lat:null, gps_lng:currentGPS?currentGPS.lng:null,
+        jarak:jarakCI||null, status:'masuk', lembur_jam:0,
+        outlet_asal:user.outlet, perbantuan_ke:perbantuanOutlet||null
+      });
+      showToast('Clock in berhasil! '+jam+(perbantuanOutlet?' (Perbantuan)':'')+' ✅');
+      currentFotoBase64='';
+      closeModal('modal-clock'); updateToday(); renderRiwayat();
+      btnSubmit.textContent = 'Simpan';
+      _clockSubmitting = false;
     });
-    showToast('Clock in berhasil! '+jam+(perbantuanOutlet?' (Perbantuan)':'')+' ✅');
+    return; // clock in pakai async, keluar dulu
   } else {
-    if(idx<0)return;
+    if(idx<0){ _clockSubmitting=false; btnSubmit.disabled=false; btnSubmit.textContent='Simpan'; return; }
     ABSENSI[idx].clockOut=jam;
     const lj=hitungLemburJam(jam,shift?shift.pulang:'17:00');
     ABSENSI[idx].lemburJam=lj;
@@ -1839,7 +1903,6 @@ function submitClock(){
       gpsLat:currentGPS?currentGPS.lat:'',gpsLng:currentGPS?currentGPS.lng:'',
       jarak:jarakCO, status:statusFinal,lemburJam:lj,fotoBase64:currentFotoBase64,
       outletAsal:user.outlet, perbantuanKe:perbantuanOutletCO});
-    // Update Supabase record
     sbUpdate('absensi', {
       clock_out:jam, gps_lat:currentGPS?currentGPS.lat:null,
       gps_lng:currentGPS?currentGPS.lng:null, jarak:jarakCO||null,
@@ -1848,11 +1911,12 @@ function submitClock(){
     }, 'nama=eq.'+encodeURIComponent(user.nama)+'&tanggal=eq.'+today()+'&clock_out=is.null');
     if(lj>0) showToast('Lembur '+lj+' jam! Pulang '+jam+' 🕐');
     else showToast('Clock out berhasil! Pulang '+jam+' ✅');
-    // Update localStorage
     try{ localStorage.setItem('absen_'+user.nama+'_'+today(), JSON.stringify({clockIn:ABSENSI[idx].clockIn,clockOut:jam,status:statusFinal,outlet:user.outlet,shift:shift?shift.id:''})); }catch(e){}
+    currentFotoBase64='';
+    closeModal('modal-clock'); updateToday(); renderRiwayat();
+    btnSubmit.textContent = 'Simpan';
+    _clockSubmitting = false;
   }
-  currentFotoBase64='';
-  closeModal('modal-clock'); updateToday(); renderRiwayat();
 }
 
 // ===== OWNER DASH =====
