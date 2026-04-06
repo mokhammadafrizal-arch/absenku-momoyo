@@ -1302,11 +1302,17 @@ async function loadInsentifCrew() {
   if(!outlet) { document.getElementById('ins-crew-list').style.display='none'; return; }
 
   const crews = await sbGet('crew', 'outlet_nama=eq.'+encodeURIComponent(outlet)+'&aktif=eq.true&order=nama');
-  const existing = await sbGet('gaji_tambahan',
-    'outlet_nama=eq.'+encodeURIComponent(outlet)+'&bulan=eq.'+bulan+'&tahun=eq.'+tahun);
+
+  // gaji_tambahan diblokir RLS dari anon key — harus via Apps Script (service_role)
+  let existing = [];
+  try {
+    const r = await fetch(SCRIPT_URL+'?action=getGajiTambahan&outlet='+encodeURIComponent(outlet)+'&bulan='+bulan+'&tahun='+tahun);
+    const d = await r.json();
+    if(d.success && Array.isArray(d.data)) existing = d.data;
+  } catch(e) { console.warn('getGajiTambahan error:', e); }
 
   const existMap = {};
-  if(existing) existing.forEach(e => existMap[e.nama] = e);
+  existing.forEach(e => existMap[e.nama] = e);
 
   const rows = document.getElementById('ins-rows');
   rows.innerHTML = '';
@@ -1344,32 +1350,28 @@ async function saveInsentif() {
   if(!outlet || crews.length === 0) return;
 
   showToast('Menyimpan...');
-  let saved = 0;
 
-  for(const c of crews) {
-    const insentif = parseInt(document.getElementById('ins-'+c.nama+'-insentif')?.value) || 0;
-    const bonus = parseInt(document.getElementById('ins-'+c.nama+'-bonus')?.value) || 0;
+  // Kirim semua crew sekaligus ke Apps Script (service_role key untuk gaji_tambahan)
+  const payload = crews.map(c => ({
+    nama: c.nama,
+    outlet_nama: outlet,
+    bulan, tahun,
+    insentif: parseInt(document.getElementById('ins-'+c.nama+'-insentif')?.value) || 0,
+    bonus: parseInt(document.getElementById('ins-'+c.nama+'-bonus')?.value) || 0
+  }));
 
-    // Check if exists
-    const existing = await sbGet('gaji_tambahan',
-      'nama=eq.'+encodeURIComponent(c.nama)+'&outlet_nama=eq.'+encodeURIComponent(outlet)+
-      '&bulan=eq.'+bulan+'&tahun=eq.'+tahun);
-
-    if(existing && existing.length > 0) {
-      await sbUpdate('gaji_tambahan',
-        {insentif, bonus},
-        'nama=eq.'+encodeURIComponent(c.nama)+'&outlet_nama=eq.'+encodeURIComponent(outlet)+
-        '&bulan=eq.'+bulan+'&tahun=eq.'+tahun);
-    } else {
-      await sbInsert('gaji_tambahan', {
-        nama: c.nama, outlet_nama: outlet,
-        bulan, tahun, insentif, bonus
-      });
-    }
-    saved++;
+  try {
+    const r = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain'},
+      body: JSON.stringify({action: 'saveGajiTambahan', data: payload})
+    });
+    const d = await r.json();
+    if(d.success) showToast('Insentif & bonus '+crews.length+' crew tersimpan ✅');
+    else showToast('Error: '+(d.error||'Gagal simpan'));
+  } catch(err) {
+    showToast('Gagal simpan: '+err.message);
   }
-
-  showToast('Insentif & bonus '+saved+' crew tersimpan ✅');
 }
 
 // Populate ins-outlet dropdown when owner settings tab opens
@@ -1728,15 +1730,21 @@ function generateExcelFile(bulan, tahun, absensiRows, crewRows, gajiMap) {
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwrRdSo8vU3vbJ9lquZ7bXJKvV3IZg9yNF3gcTlQ1pe2dEKO-dzOz_gHBD8d37YVLiu-w/exec';
 const SB_URL = 'https://tkbqsuqxchuvazmblqef.supabase.co';
-const SB_KEY = 'sb_publishable_RgePJvcQ7AHBiFYvqhp_BA_JmQRCTw7';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRrYnFzdXF4Y2h1dmF6bWJscWVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5NjI0MzksImV4cCI6MjA5MDUzODQzOX0.7mK1ISd_7oRqSv3L8fksAhh7TA2RwL_TPjEBuRaqHFA';
 
 // ===== SUPABASE HELPERS =====
 async function sbGet(table, params='') {
   const separator = params ? '&' : '';
-  const res = await fetch(SB_URL+'/rest/v1/'+table+'?'+params+separator+'limit=1000', {
+  const res = await fetch(SB_URL+'/rest/v1/'+table+'?'+params+separator+'limit=5000', {
     headers: {'apikey': SB_KEY, 'Authorization': 'Bearer '+SB_KEY}
   });
-  return res.json();
+  const data = await res.json();
+  // Kalau Supabase return error object (bukan array), throw supaya catch bisa tangkap
+  if (!Array.isArray(data)) {
+    if (data && data.code) throw new Error('['+table+'] '+data.message+' (kode: '+data.code+')');
+    return [];
+  }
+  return data;
 }
 
 async function sbInsert(table, data) {
