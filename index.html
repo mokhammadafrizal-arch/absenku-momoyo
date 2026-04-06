@@ -433,9 +433,14 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
     <div class="abox abox-ok" id="alert-ok">✅ Lokasi terverifikasi — kamu ada di area outlet.</div>
     <div class="field">
       <label class="lbl">Foto Selfie</label>
-      <input type="file" id="file-foto" accept="image/*" capture="environment" onchange="previewFoto(event)" style="display:none">
-      <div class="foto-area" id="foto-box" onclick="bukaBukaKamera()">
+      <div id="foto-box" class="foto-area" onclick="bukaBukaKamera()" style="position:relative;overflow:hidden">
         <span style="font-size:22px">📷</span><span>Ketuk untuk ambil foto selfie</span>
+      </div>
+      <!-- Preview kamera live -->
+      <div id="camera-wrap" style="display:none;position:relative;border-radius:var(--rs);overflow:hidden">
+        <video id="camera-video" autoplay playsinline style="width:100%;max-height:220px;object-fit:cover;display:block"></video>
+        <button onclick="captureFoto()" style="width:100%;padding:10px;background:var(--green);color:white;font-weight:700;border:none;font-size:14px;cursor:pointer">📸 Ambil Foto</button>
+        <button onclick="tutupKamera()" style="width:100%;padding:8px;background:var(--surface2);color:var(--text2);font-weight:600;border:none;font-size:13px;cursor:pointer">Batal</button>
       </div>
     </div>
     <div class="field">
@@ -549,60 +554,60 @@ const SH_BATU = [{id:'pagi-wd',label:'Pagi Weekday',masuk:'08:00',pulang:'17:00'
 
 // ===== OUTLETS — KOORDINAT REAL =====
 let OUTLETS = [
-  {id:1, nama:"Momoyo Sumbersari",  lat:-7.9533053, lng:112.610355,  radius:1000, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
+  {id:1, nama:"Momoyo Sumbersari",  lat:-7.9533053, lng:112.610355,  radius:500, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
     {nama:"Melany Devitasari",shift:'pagi'},{nama:"Shanaz Putri Indy",shift:'siang'},
     {nama:"Faizatul Lutvia",shift:'pagi'},{nama:"Dadang Farid Pamungkas",shift:'siang'}]},
-  {id:2, nama:"Momoyo Sulfat",       lat:-7.9606852, lng:112.6500381, radius:1000, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
+  {id:2, nama:"Momoyo Sulfat",       lat:-7.9606852, lng:112.6500381, radius:500, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
     {nama:"Eri Hidayati",shift:'pagi'},{nama:"Mohammad Ilham Muttaqin",shift:'siang'},
     {nama:"Rizal Yuliansah",shift:'pagi'},{nama:"Dwi Wanda Larasati",shift:'siang'}]},
-  {id:3, nama:"Momoyo Kantor Pos",   lat:-7.983554,  lng:112.6302009, radius:1000, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
+  {id:3, nama:"Momoyo Kantor Pos",   lat:-7.983554,  lng:112.6302009, radius:500, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
     {nama:"Muchamad Mauladani",shift:'pagi'},{nama:"Diva Fitri Krisdiana",shift:'siang'},
     {nama:"Miftahul Janah",shift:'pagi'},{nama:"Fatimah",shift:'siang'},
     {nama:"Mirza Fabian Saputra",shift:'pagi'},{nama:"Vendy Chourro Wibisono",shift:'siang'},
     {nama:"Marsha Arivanda",shift:'pagi'}]},
-  {id:4, nama:"Momoyo Puncak Mandala",lat:-7.9645832,lng:112.6040699, radius:1000, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
+  {id:4, nama:"Momoyo Puncak Mandala",lat:-7.9645832,lng:112.6040699, radius:500, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
     {nama:"Nur Laili Afidati",shift:'pagi'},{nama:"Mahabah Insani Taqwa",shift:'siang'},
     {nama:"Jefannes Kurniawan",shift:'pagi'},{nama:"Adhelia Augsta Guevara",shift:'siang'}]},
-  {id:5, nama:"Momoyo Pahlawan Trip", lat:-7.966725, lng:112.6196882, radius:1000, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
+  {id:5, nama:"Momoyo Pahlawan Trip", lat:-7.966725, lng:112.6196882, radius:500, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
     {nama:"Natasha Christy",shift:'pagi'},{nama:"Moreno",shift:'siang'},
     {nama:"Aisyah Dini Setyawati",shift:'pagi'},{nama:"Mochammad Aan",shift:'siang'},
     {nama:"Giska Fitria",shift:'pagi'},{nama:"Yeni Rahmawat",shift:'siang'},
     {nama:"Shiendy Leony Lukito Pratama",shift:'pagi'}]},
-  {id:6, nama:"Momoyo Pajajaran",    lat:-7.9757246, lng:112.6360922, radius:1000, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
+  {id:6, nama:"Momoyo Pajajaran",    lat:-7.9757246, lng:112.6360922, radius:500, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
     {nama:"Icha Luky Trianissa",shift:'pagi'},{nama:"Joananta",shift:'siang'},
     {nama:"Niken Ayunda Dewi",shift:'pagi'},{nama:"Mirza Fabian Saputra",shift:'siang'},
     {nama:"Shevalina",shift:'pagi'},{nama:"Siti Maulidiah",shift:'siang'},
     {nama:"Julia Wahyu Imaniar",shift:'pagi'},{nama:"Dela Kurnia W",shift:'siang'}]},
-  {id:7, nama:"Momoyo Sukun",        lat:-7.9967432, lng:112.6192921, radius:1000, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
+  {id:7, nama:"Momoyo Sukun",        lat:-7.9967432, lng:112.6192921, radius:500, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
     {nama:"Siska",shift:'pagi'},{nama:"Raka Prasetya",shift:'siang'},
     {nama:"Nurhabibah Maysaroh",shift:'pagi'},{nama:"Brilian",shift:'siang'}]},
-  {id:8, nama:"Momoyo Tlogo Indah",  lat:-7.9383115, lng:112.6022098, radius:1000, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
+  {id:8, nama:"Momoyo Tlogo Indah",  lat:-7.9383115, lng:112.6022098, radius:500, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
     {nama:"Deva Aaliyah Marta",shift:'pagi'},{nama:"Cahyo Syahrul",shift:'siang'},
     {nama:"Azzarani Finika",shift:'pagi'},{nama:"Henika Saraswati",shift:'siang'},
     {nama:"Sofadhatuzzahro Prastika",shift:'pagi'}]},
-  {id:9, nama:"AI-CHA Tumpang",      lat:-8.0011899, lng:112.7612387, radius:1000, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
+  {id:9, nama:"AI-CHA Tumpang",      lat:-8.0011899, lng:112.7612387, radius:500, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
     {nama:"Tri Handayami",shift:'pagi'},{nama:"Eka Tarisma Febriani",shift:'siang'},
     {nama:"Nur Akhlakul Karimah",shift:'pagi'},{nama:"Rafelia Indira Ananti",shift:'siang'}]},
-  {id:10,nama:"Momoyo Mendit",       lat:-7.952000,  lng:112.676258,  radius:1000, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
+  {id:10,nama:"Momoyo Mendit",       lat:-7.952000,  lng:112.676258,  radius:500, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
     {nama:"Rizki Hilman Ariaga",shift:'pagi'},{nama:"Joko Susilo",shift:'siang'},
     {nama:"Jimad Ferdinan P",shift:'pagi'},{nama:"Eri Hidayati",shift:'siang'},
     {nama:"Rizky Maulana Firdaus H",shift:'pagi'},{nama:"Mukti Fadil Santoso",shift:'siang'},
     {nama:"Syerli Anindhita",shift:'pagi'},{nama:"Firoh",shift:'siang'}]},
-  {id:11,nama:"Momoyo Gadang",       lat:-8.014544,  lng:112.6284781, radius:1000, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
+  {id:11,nama:"Momoyo Gadang",       lat:-8.014544,  lng:112.6284781, radius:500, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
     {nama:"Mareta Ella Amelia Karina",shift:'pagi'},{nama:"Eka Fitriani Lestari",shift:'siang'},
     {nama:"Wulan Dwi Santika",shift:'pagi'},{nama:"Aisyah Putri Hanifa",shift:'siang'},
     {nama:"Hafizh Indra Fata",shift:'pagi'},{nama:"Fitri Nur Janah",shift:'siang'}]},
-  {id:12,nama:"Momoyo Turen",        lat:-8.1811559, lng:112.6924942, radius:1000, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
+  {id:12,nama:"Momoyo Turen",        lat:-8.1811559, lng:112.6924942, radius:500, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
     {nama:"Elien Reza Adelia",shift:'pagi'},{nama:"Nanda Duwi Agustineng",shift:'siang'},
     {nama:"Afifah Maldinatul Khoirun Nisa",shift:'pagi'},{nama:"Linda Nor Ajizah",shift:'siang'},
     {nama:"A.Nasyihudin",shift:'pagi'},{nama:"Nur Alif Bulloh",shift:'siang'},
     {nama:"Faismiatul Hidayah",shift:'pagi'},{nama:"Reza Mahilda",shift:'siang'}]},
-  {id:13,nama:"Momoyo Bululawang",   lat:-8.0817512, lng:112.6387604, radius:1000, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
+  {id:13,nama:"Momoyo Bululawang",   lat:-8.0817512, lng:112.6387604, radius:500, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
     {nama:"Tantri Puspa Ambarwati",shift:'pagi'},{nama:"Gebi Devita Sari",shift:'siang'},
     {nama:"Mega Windi Indarti",shift:'pagi'},{nama:"Harianto",shift:'siang'},
     {nama:"Talitha Putri Salsabilla",shift:'pagi'},{nama:"Reno",shift:'siang'},
     {nama:"Mukhamad Nur Kholis",shift:'pagi'}]},
-  {id:14,nama:"Momoyo Pasuruan",     lat:-7.6423806, lng:112.9057347, radius:1000, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
+  {id:14,nama:"Momoyo Pasuruan",     lat:-7.6423806, lng:112.9057347, radius:500, isBatu:false, shifts:JSON.parse(JSON.stringify(SH_STD)), crew:[
     {nama:"Muchamad Iza Putra",shift:'pagi'},{nama:"Joceyl Anastasia Wahyud",shift:'siang'},
     {nama:"Nabila Rahmawati",shift:'pagi'},{nama:"Atok Ullah",shift:'siang'},
     {nama:"Tri Yulianti",shift:'pagi'},{nama:"Putri Dwi Septiani",shift:'siang'},
@@ -611,7 +616,7 @@ let OUTLETS = [
     {nama:"Kholil Nur",shift:'pagi'},{nama:"Mokhmad Irlan Hidayat",shift:'siang'},
     {nama:"Muchammad Nasrul Nurdian",shift:'pagi'},{nama:"Muhammad Dimas Adza",shift:'siang'},
     {nama:"Vina Afidatus Sofa",shift:'pagi'},{nama:"Dimas Patriciairianto Putra",shift:'siang'}]},
-  {id:15,nama:"Momoyo Alun Alun Batu",lat:-7.8716438,lng:112.5267184, radius:1000, isBatu:true, shifts:JSON.parse(JSON.stringify(SH_BATU)), crew:[
+  {id:15,nama:"Momoyo Alun Alun Batu",lat:-7.8716438,lng:112.5267184, radius:500, isBatu:true, shifts:JSON.parse(JSON.stringify(SH_BATU)), crew:[
     {nama:"Riza",shift:'pagi-wd'},{nama:"Ryan David",shift:'siang-wd'},
     {nama:"Agis Dia Rtosita",shift:'pagi-we'},{nama:"Rama",shift:'siang-we'},
     {nama:"Oktavia Ramadhani",shift:'pagi-wd'}]},
@@ -1115,6 +1120,9 @@ function openClock(type){
   document.getElementById('gps-txt').textContent='Belum diambil';
   document.getElementById('btn-submit-clock').disabled=true;
   document.getElementById('foto-box').innerHTML='<span style="font-size:22px">📷</span><span>Ketuk untuk ambil foto selfie</span>';
+  document.getElementById('foto-box').style.display='flex';
+  document.getElementById('camera-wrap').style.display='none';
+  if(_kameraStream){ _kameraStream.getTracks().forEach(t=>t.stop()); _kameraStream=null; }
   document.getElementById('alert-jauh').className='abox abox-err';
   document.getElementById('alert-ok').className='abox abox-ok';
   // Reset perbantuan
@@ -1134,40 +1142,82 @@ function openClock(type){
 }
 
 let currentFotoBase64='';
+let _kameraStream = null;
 
-// Buka kamera — cek dulu apakah ada kamera, baru buka
+// Buka kamera pakai getUserMedia — tidak bisa dibypass dari galeri
 function bukaBukaKamera() {
-  // Cek apakah device punya kamera (mobile/tablet)
-  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-    showToast('❌ Absensi hanya bisa dari HP, bukan PC!');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('❌ Absensi hanya bisa dari HP dengan kamera!');
     return;
   }
-  navigator.mediaDevices.enumerateDevices().then(function(devices) {
-    const adaKamera = devices.some(d => d.kind === 'videoinput');
-    if (!adaKamera) {
-      showToast('❌ Absensi hanya bisa dari HP, bukan PC!');
-      return;
-    }
-    // Ada kamera → buka input file
-    const inp = document.getElementById('file-foto');
-    inp.value = '';
-    inp.click();
-  }).catch(function() {
-    showToast('❌ Absensi hanya bisa dari HP, bukan PC!');
-  });
+  const video = document.getElementById('camera-video');
+  const wrap = document.getElementById('camera-wrap');
+  const fotoBox = document.getElementById('foto-box');
+
+  navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment', width: 800}, audio: false})
+    .then(stream => {
+      _kameraStream = stream;
+      video.srcObject = stream;
+      fotoBox.style.display = 'none';
+      wrap.style.display = 'block';
+    })
+    .catch(err => {
+      if(err.name === 'NotAllowedError') showToast('❌ Izinkan akses kamera di pengaturan HP');
+      else if(err.name === 'NotFoundError') showToast('❌ Kamera tidak ditemukan');
+      else showToast('❌ Tidak bisa buka kamera: '+err.message);
+    });
 }
 
+function tutupKamera() {
+  if(_kameraStream) { _kameraStream.getTracks().forEach(t=>t.stop()); _kameraStream=null; }
+  document.getElementById('camera-wrap').style.display = 'none';
+  document.getElementById('foto-box').style.display = 'flex';
+}
+
+function captureFoto() {
+  const video = document.getElementById('camera-video');
+  const canvas = document.createElement('canvas');
+  const MAX = 800;
+  let w = video.videoWidth, h = video.videoHeight;
+  if(w > MAX){ h = Math.round(h*MAX/w); w = MAX; }
+  if(h > MAX){ w = Math.round(w*MAX/h); h = MAX; }
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, w, h);
+
+  // Watermark: nama + outlet + waktu + GPS
+  const jam = getJam();
+  const tgl = today();
+  const gpsInfo = currentGPS ? currentGPS.lat.toFixed(4)+','+currentGPS.lng.toFixed(4) : 'GPS...';
+  const label1 = user.nama + ' · ' + (user.outlet||'').replace('Momoyo ','').replace('AI-CHA ','AICHA ');
+  const label2 = tgl + ' ' + jam + ' · ' + gpsInfo;
+  const barH = 36;
+  ctx.fillStyle = 'rgba(0,0,0,0.62)';
+  ctx.fillRect(0, h - barH, w, barH);
+  ctx.fillStyle = 'white';
+  ctx.font = 'bold 11px Arial';
+  ctx.fillText(label1, 8, h - barH + 13);
+  ctx.font = '10px Arial';
+  ctx.fillText(label2, 8, h - barH + 27);
+
+  const compressed = canvas.toDataURL('image/jpeg', 0.75);
+  currentFotoBase64 = compressed.split(',')[1] || '';
+
+  // Tampilkan preview hasil foto
+  const fotoBox = document.getElementById('foto-box');
+  fotoBox.innerHTML = `<img src="${compressed}" style="width:100%;height:110px;object-fit:cover"/><div class="foto-ov"><span>Ketuk untuk ulang foto</span></div>`;
+  fotoBox.style.display = 'flex';
+  document.getElementById('camera-wrap').style.display = 'none';
+
+  // Stop stream kamera
+  if(_kameraStream){ _kameraStream.getTracks().forEach(t=>t.stop()); _kameraStream=null; }
+
+  fotoReady = true; checkReady();
+}
+
+// Fungsi ini tidak dipakai lagi tapi dibiarkan agar tidak error kalau ada referensi lama
 function previewFoto(e){
   const file=e.target.files[0]; if(!file)return;
-
-  // Block foto dari galeri — harus fresh dari kamera (lastModified dalam 60 detik terakhir)
-  const umurDetik = (Date.now() - file.lastModified) / 1000;
-  if(umurDetik > 60) {
-    showToast('❌ Harus foto langsung dari kamera, bukan galeri!');
-    e.target.value = '';
-    return;
-  }
-
   const r=new FileReader();
   r.onload=ev=>{
     const dataUrl=ev.target.result;
@@ -1196,9 +1246,9 @@ function ambilGPS(){
   dot.className='gps-dot loading'; txt.textContent='Mengambil lokasi GPS...';
   document.getElementById('alert-jauh').className='abox abox-err';
   document.getElementById('alert-ok').className='abox abox-ok';
-  const process=(lat,lng,demo)=>{
+
+  const processGPS=(lat,lng)=>{
     currentGPS={lat,lng};
-    // Kalau perbantuan, cek GPS ke outlet tujuan
     const outletTujuan = isPerbantuan
       ? document.getElementById('perbantuan-outlet').value
       : user.outlet;
@@ -1207,7 +1257,7 @@ function ambilGPS(){
     const labelOutlet = isPerbantuan ? ' ('+o.nama.replace('Momoyo ','').replace('AI-CHA ','AICHA ')+')' : '';
     if(jarak<=o.radius){
       dot.className='gps-dot ok';
-      txt.textContent=(demo?'[Demo] ':'')+lat.toFixed(5)+', '+lng.toFixed(5)+' — '+jarak+'m ✓'+labelOutlet;
+      txt.textContent=lat.toFixed(5)+', '+lng.toFixed(5)+' — '+jarak+'m ✓'+labelOutlet;
       gpsReady=true; gpsValid=true;
       document.getElementById('alert-ok').className='abox abox-ok show';
     } else {
@@ -1218,9 +1268,35 @@ function ambilGPS(){
     }
     checkReady();
   };
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(p=>process(p.coords.latitude,p.coords.longitude,false),()=>process(-7.9533,112.6103,true),{timeout:8000});
-  } else process(-7.9533,112.6103,true);
+
+  if(!navigator.geolocation){
+    dot.className='gps-dot err';
+    txt.textContent='GPS tidak tersedia di perangkat ini';
+    gpsReady=true; gpsValid=false; checkReady();
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    p=>{
+      // Tolak kalau akurasi GPS lebih dari 150m (tidak reliable)
+      if(p.coords.accuracy > 150){
+        dot.className='gps-dot err';
+        txt.textContent='GPS tidak akurat (±'+Math.round(p.coords.accuracy)+'m). Coba ke luar ruangan atau tunggu sebentar.';
+        gpsReady=true; gpsValid=false; checkReady();
+        return;
+      }
+      processGPS(p.coords.latitude, p.coords.longitude);
+    },
+    err=>{
+      dot.className='gps-dot err';
+      const msg = err.code===1 ? 'Izinkan akses lokasi dulu di pengaturan HP'
+                : err.code===3 ? 'GPS timeout — coba ke luar ruangan dan ulangi'
+                : 'GPS error, coba ulangi';
+      txt.textContent=msg;
+      gpsReady=true; gpsValid=false; checkReady();
+    },
+    {timeout:12000, enableHighAccuracy:true, maximumAge:0}
+  );
 }
 
 function checkReady(){document.getElementById('btn-submit-clock').disabled=!(fotoReady&&gpsReady&&gpsValid)}
