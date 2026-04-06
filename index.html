@@ -2116,7 +2116,7 @@ function renderSettings(){
     </div>`).join('');
 }
 
-function openOutletModal(i){
+async function openOutletModal(i){
   outletSetIdx=i; const o=OUTLETS[i];
   document.getElementById('outlet-title').textContent='Atur: '+o.nama;
   document.getElementById('set-radius').value=o.radius;
@@ -2129,8 +2129,29 @@ function openOutletModal(i){
         <div style="flex:1"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Pulang</div><input class="input" type="time" id="sp-${s.id}" value="${s.pulang}" style="padding:8px 10px;font-size:13px"/></div>
       </div>
     </div>`).join('');
-  renderCrewList(i);
+  // Tampilkan modal dulu, baru fetch crew
+  document.getElementById('crew-list-settings').innerHTML='<div style="color:var(--text3);font-size:13px;padding:8px 0">⏳ Memuat crew...</div>';
   document.getElementById('modal-outlet').classList.add('show');
+  // Fetch crew terbaru dari Supabase
+  try {
+    const crews = await sbGet('crew', 'outlet_nama=eq.'+encodeURIComponent(o.nama)+'&aktif=eq.true&order=nama');
+    if(crews && crews.length > 0) {
+      // Sync ke local OUTLETS array dengan data lengkap dari Supabase
+      o.crew = crews.map(c => ({
+        nama: c.nama,
+        shift: c.shift || 'pagi',
+        tanggal_masuk: c.tanggal_masuk || null,
+        norek: c.norek || null,
+        atas_nama: c.atas_nama || null,
+        gaji_custom: c.gaji_custom || null
+      }));
+    } else {
+      o.crew = [];
+    }
+  } catch(e) {
+    console.warn('Gagal fetch crew:', e);
+  }
+  renderCrewList(i);
 }
 
 function renderCrewList(i){
