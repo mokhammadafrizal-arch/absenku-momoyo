@@ -241,7 +241,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
     </div>
     <div class="card">
       <div class="card-lbl">Rekap Februari 2026</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px" id="profil-stats"></div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px" id="profil-stats"></div>
       <div class="formula-box" id="formula-box"></div>
     </div>
     <div class="card"><div class="card-lbl">Performa Kehadiran</div><div id="perf-bars"></div></div>
@@ -290,6 +290,14 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
       <div class="stat"><div class="stat-n" style="color:var(--red)" id="o-alpha">0</div><div class="stat-l">Alpha / pending</div></div>
       <div class="stat"><div class="stat-n" style="color:var(--amber)" id="o-lembur">0</div><div class="stat-l">Lembur</div></div>
       <div class="stat"><div class="stat-n" style="color:var(--blue)" id="o-cuti">0</div><div class="stat-l">Cuti hari ini</div></div>
+    </div>
+    <div class="stat-row" style="margin-top:8px">
+      <div class="stat" style="grid-column:span 2;background:var(--red-bg);border-color:#FCA5A5">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div><div class="stat-n" style="color:var(--red)" id="o-telat">0</div><div class="stat-l">Telat hari ini</div></div>
+          <div id="o-telat-list" style="font-size:11px;color:var(--red);text-align:right;max-width:60%"></div>
+        </div>
+      </div>
     </div>
     <div class="card"><div class="card-lbl">Semua Outlet</div><div id="outlet-list"></div></div>
   </div>
@@ -1122,7 +1130,7 @@ async function renderProfil(){
   } catch(e) { absensi = []; }
 
   // Hitung statistik
-  let masuk=0, libur=0, cuti=0, alpha=0, lemburHari=0, lemburJam=0;
+  let masuk=0, libur=0, cuti=0, alpha=0, lemburHari=0, lemburJam=0, telat=0, totalTelatMenit=0;
   const calMap = {};
   absensi.forEach(a => {
     const tgl = parseInt(a.tanggal.split('/')[0]);
@@ -1131,6 +1139,13 @@ async function renderProfil(){
     else if(a.status==='libur'){libur++;calMap[tgl]='libur';}
     else if(a.status==='cuti'){cuti++;calMap[tgl]='cuti';}
     else if(a.status==='alpha'){alpha++;calMap[tgl]='alpha';}
+    // Hitung telat
+    if(a.clock_in) {
+      const jamInt = parseInt(a.clock_in.split(':')[0]);
+      const shiftMasuk = jamInt < 13 ? '08:00' : '14:00';
+      const mntTelat = toMenit(a.clock_in) - toMenit(shiftMasuk);
+      if(mntTelat > 0) { telat++; totalTelatMenit += mntTelat; }
+    }
   });
 
   const terhitung = alpha===0 ? masuk+libur+cuti : masuk+cuti;
@@ -1147,7 +1162,11 @@ async function renderProfil(){
     <div class="stat"><div class="stat-n" style="color:#7C3AED">${libur}</div><div class="stat-l">Libur</div></div>
     <div class="stat"><div class="stat-n" style="color:var(--red)">${alpha}</div><div class="stat-l">Alpha</div></div>
     <div class="stat"><div class="stat-n" style="color:var(--amber)">${lemburHari}</div><div class="stat-l">Lembur (hari)</div></div>
-    <div class="stat" style="grid-column:span 2;background:${hasAlpha?'var(--red-bg)':'var(--green-bg)'};border-color:${hasAlpha?'#FCA5A5':'var(--green-light)'}">
+    <div class="stat" style="background:${telat>0?'var(--red-bg)':'var(--surface)'};border-color:${telat>0?'#FCA5A5':'var(--border)'}">
+      <div class="stat-n" style="color:${telat>0?'var(--red)':'var(--text3)'}">${telat}</div>
+      <div class="stat-l">${telat>0?'Telat · '+totalTelatMenit+'mnt':'Telat'}</div>
+    </div>
+    <div class="stat" style="background:${hasAlpha?'var(--red-bg)':'var(--green-bg)'};border-color:${hasAlpha?'#FCA5A5':'var(--green-light)'}">
       <div class="stat-n" style="color:${hasAlpha?'var(--red)':'var(--green)'}">${terhitung} / ${totalTercatat}</div>
       <div class="stat-l" style="color:${hasAlpha?'var(--red)':'var(--green)'}">Terhitung Masuk</div>
     </div>`;
@@ -1504,19 +1523,25 @@ async function renderRekapBulanan() {
     // Hitung per crew
     function hitungCrew(nama) {
       const rows = absenMap[nama] || [];
-      let masuk=0, libur=0, cuti=0, alpha=0, lembur=0;
+      let masuk=0, libur=0, cuti=0, alpha=0, lembur=0, telat=0, totalTelatMenit=0;
       rows.forEach(a => {
         if(a.status==='masuk'||a.status==='lembur') masuk++;
         else if(a.status==='libur') libur++;
         else if(a.status==='cuti') cuti++;
         else if(a.status==='alpha') alpha++;
         if(a.lembur_jam) lembur += parseInt(a.lembur_jam)||0;
+        // Hitung telat
+        if(a.clock_in) {
+          const jamInt = parseInt(a.clock_in.split(':')[0]);
+          const shiftMasuk = jamInt < 13 ? '08:00' : '14:00';
+          const mntTelat = toMenit(a.clock_in) - toMenit(shiftMasuk);
+          if(mntTelat > 0) { telat++; totalTelatMenit += mntTelat; }
+        }
       });
-      // Hari tanpa data = tidak dihitung (absensi real, bukan asumsi)
       const terhitung = alpha===0 ? masuk+libur+cuti : masuk+cuti;
       const totalTercatat = masuk+libur+cuti+alpha;
       const persen = totalTercatat===0 ? 0 : Math.round((terhitung / totalTercatat) * 100);
-      return {masuk, libur, cuti, alpha, lembur, terhitung, persen};
+      return {masuk, libur, cuti, alpha, lembur, terhitung, persen, telat, totalTelatMenit};
     }
 
     // Group crew per outlet
@@ -1563,6 +1588,7 @@ async function renderRekapBulanan() {
             <span>📅 Libur: <b>${s.libur}</b></span>
             ${s.alpha > 0 ? `<span style="color:#CC0000">⚠️ Alpha: <b>${s.alpha}</b></span>` : ''}
             ${s.lembur > 0 ? `<span style="color:#d97706">⏱ Lembur: <b>${s.lembur} jam</b></span>` : ''}
+            ${s.telat > 0 ? `<span style="color:#CC0000">🕐 Telat: <b>${s.telat}x · ${s.totalTelatMenit} mnt</b></span>` : ''}
           </div>
         </div>`;
       });
@@ -2248,10 +2274,33 @@ function renderOwnerDash(){
   const alpha=ABSENSI.filter(a=>a.status==='alpha'&&a.tgl===today()).length;
   const lembur=ABSENSI.filter(a=>a.status==='lembur'&&a.tgl===today()).length;
   const cuti=ABSENSI.filter(a=>a.status==='cuti'&&a.tgl===today()).length;
+
+  // Hitung telat hari ini
+  const telatList = ABSENSI.filter(a=>{
+    if(a.tgl!==today()||!a.clockIn) return false;
+    const shift = getShift(a.outlet, a.nama, a.clockIn);
+    if(!shift) return false;
+    return toMenit(a.clockIn) > toMenit(shift.masuk);
+  });
+
   document.getElementById('o-hadir').textContent=hadir;
   document.getElementById('o-alpha').textContent=alpha+NOTIFS.filter(n=>n.tipe==='lupa-clockout').length;
   document.getElementById('o-lembur').textContent=lembur;
   document.getElementById('o-cuti').textContent=cuti;
+  document.getElementById('o-telat').textContent=telatList.length;
+
+  // Tampilkan nama yang telat
+  const telatEl = document.getElementById('o-telat-list');
+  if(telatList.length > 0) {
+    telatEl.innerHTML = telatList.slice(0,3).map(a=>{
+      const shift = getShift(a.outlet, a.nama, a.clockIn);
+      const mnt = toMenit(a.clockIn) - toMenit(shift?shift.masuk:'08:00');
+      return a.nama.split(' ')[0]+' +'+mnt+'mnt';
+    }).join('<br>')+( telatList.length>3 ? '<br>+'+( telatList.length-3)+' lainnya':'');
+  } else {
+    telatEl.innerHTML = '';
+  }
+
   updateNotifBadge();
   document.getElementById('outlet-list').innerHTML=OUTLETS.map(o=>{
     const crew=ABSENSI.filter(a=>a.outlet===o.nama&&a.tgl===today());
