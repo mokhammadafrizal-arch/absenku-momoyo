@@ -503,10 +503,21 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 <div class="modal-overlay" id="modal-edit">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Edit Status</div>
+    <div class="modal-title">Edit Absensi</div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:12px" id="edit-label">-</div>
     <div class="s-pill-grid" id="edit-pills"></div>
-    <div class="field" style="margin-top:12px"><label class="lbl">Catatan owner</label><input class="input" id="edit-catatan" placeholder="Opsional..."/></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <div style="flex:1">
+        <label class="lbl">Jam Clock In</label>
+        <input class="input" type="time" id="edit-clock-in" style="padding:10px 12px">
+      </div>
+      <div style="flex:1">
+        <label class="lbl">Jam Clock Out</label>
+        <input class="input" type="time" id="edit-clock-out" style="padding:10px 12px">
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:4px;margin-bottom:8px">Kosong = tidak diubah</div>
+    <div class="field"><label class="lbl">Catatan owner</label><input class="input" id="edit-catatan" placeholder="Opsional..."/></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-outline" style="flex:1" onclick="closeModal('modal-edit')">Batal</button>
       <button class="btn btn-green" style="flex:1" onclick="saveEdit()">Simpan</button>
@@ -2408,8 +2419,11 @@ function renderRekap(){
 
 function openEdit(idx){
   editIdx=idx; editStatus=ABSENSI[idx].status;
-  document.getElementById('edit-label').textContent=ABSENSI[idx].nama+' · '+ABSENSI[idx].outlet;
+  const a = ABSENSI[idx];
+  document.getElementById('edit-label').textContent=a.nama+' · '+a.tgl;
   document.getElementById('edit-catatan').value='';
+  document.getElementById('edit-clock-in').value=a.clockIn||'';
+  document.getElementById('edit-clock-out').value=a.clockOut||'';
   renderEditPills();
   document.getElementById('modal-edit').classList.add('show');
 }
@@ -2421,16 +2435,36 @@ function renderEditPills(){
   document.getElementById('edit-pills').innerHTML=st.map(s=>`<button class="s-pill" style="${s===editStatus?sel[s]:''}" onclick="selEdit('${s}')"><span>${ic[s]}</span>${s}</button>`).join('');
 }
 function selEdit(s){editStatus=s;renderEditPills();}
+
 async function saveEdit(){
   const a = ABSENSI[editIdx];
-  // Update Supabase
-  const ok = await sbUpdate('absensi',
-    {status: editStatus},
-    'nama=eq.'+encodeURIComponent(a.nama)+'&tanggal=eq.'+a.tgl
-  );
+  const newClockIn = document.getElementById('edit-clock-in').value || null;
+  const newClockOut = document.getElementById('edit-clock-out').value || null;
+
+  // Hitung ulang lembur kalau jam diubah
+  let newStatus = editStatus;
+  let newLembur = a.lemburJam || 0;
+  if(newClockOut && newClockIn) {
+    const shift = getShift(a.outlet, a.nama, newClockIn || a.clockIn);
+    newLembur = hitungLemburJam(newClockOut, shift ? shift.pulang : '17:00');
+    if(newLembur > 0 && newStatus === 'masuk') newStatus = 'lembur';
+    if(newLembur === 0 && newStatus === 'lembur') newStatus = 'masuk';
+  }
+
+  const updateData = {status: newStatus};
+  if(newClockIn) updateData.clock_in = newClockIn;
+  if(newClockOut) updateData.clock_out = newClockOut;
+  if(newLembur !== undefined) updateData.lembur_jam = newLembur;
+
+  const ok = await sbUpdate('absensi', updateData,
+    'nama=eq.'+encodeURIComponent(a.nama)+'&tanggal=eq.'+a.tgl);
+
   if(ok){
-    ABSENSI[editIdx].status=editStatus;
-    showToast('Status → '+editStatus+' ✓');
+    ABSENSI[editIdx].status = newStatus;
+    if(newClockIn) ABSENSI[editIdx].clockIn = newClockIn;
+    if(newClockOut) ABSENSI[editIdx].clockOut = newClockOut;
+    ABSENSI[editIdx].lemburJam = newLembur;
+    showToast('Absensi diupdate ✅');
     closeModal('modal-edit'); renderRekap(); renderOwnerDash();
   } else {
     showToast('Gagal update, coba lagi!');
