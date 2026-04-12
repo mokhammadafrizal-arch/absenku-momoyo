@@ -238,6 +238,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
       <div style="font-size:17px;font-weight:700" id="profil-nama">-</div>
       <div style="font-size:12px;color:var(--text2);margin-top:3px" id="profil-outlet-lbl">-</div>
       <div id="profil-shift-chip" style="margin-top:8px"></div>
+      <div id="profil-tier-chip" style="margin-top:6px"></div>
     </div>
     <div class="card">
       <div class="card-lbl">Rekap Februari 2026</div>
@@ -684,6 +685,20 @@ const FEB_RAW = {
   "Dadang Farid Pamungkas":    {masuk:24, libur:3, cuti:0, alpha:1, lemburHari:4},
   "Faizatul Lutvia":           {masuk:24, libur:3, cuti:0, alpha:1, lemburHari:3},
 };
+
+function hitungTierCrew(tanggalMasuk, gajiCustom) {
+  if(gajiCustom) return {tier:'Custom', gaji:gajiCustom, warna:'#7C3AED', bg:'#F3E8FF'};
+  if(!tanggalMasuk) return {tier:'Tier 3', gaji:60000, warna:'#16A34A', bg:'#DCFCE7'};
+  const masuk = new Date(tanggalMasuk);
+  const now = new Date();
+  let y = now.getFullYear()-masuk.getFullYear();
+  let m = now.getMonth()-masuk.getMonth();
+  if(m<0){y--;m+=12;}
+  const masa = y + m/12;
+  if(masa >= 2+7/12) return {tier:'Tier 1', gaji:75000, warna:'#BE185D', bg:'#FCE7F3'};
+  if(masa >= 1+1/12) return {tier:'Tier 2', gaji:67500, warna:'#B45309', bg:'#FEF3C7'};
+  return {tier:'Tier 3', gaji:60000, warna:'#16A34A', bg:'#DCFCE7'};
+}
 
 function hitungTerhitung(d) {
   // Ada alpha → libur hangus, terhitung = masuk saja
@@ -1164,6 +1179,17 @@ async function renderProfil(){
   // Update label bulan di profil
   const rekapEl = document.getElementById('rekap-bulan-label');
   if(rekapEl) rekapEl.textContent = 'REKAP '+bulanNama.toUpperCase()+' '+tahun;
+
+  // Fetch data crew untuk tier
+  try {
+    const crewData = await sbGet('crew', 'nama=eq.'+encodeURIComponent(user.nama)+'&outlet_nama=eq.'+encodeURIComponent(user.outlet)+'&select=tanggal_masuk,gaji_custom&limit=1');
+    if(crewData && crewData.length > 0) {
+      const c = crewData[0];
+      const tier = hitungTierCrew(c.tanggal_masuk, c.gaji_custom);
+      const tierEl = document.getElementById('profil-tier-chip');
+      if(tierEl) tierEl.innerHTML = `<span style="display:inline-block;padding:4px 12px;border-radius:99px;font-size:11px;font-weight:700;background:${tier.bg};color:${tier.warna}">${tier.tier} · Rp ${tier.gaji.toLocaleString('id-ID')}/hari</span>`;
+    }
+  } catch(e) {}
 
   document.getElementById('profil-stats').innerHTML=`
     <div class="stat"><div class="stat-n" style="color:var(--green)">${masuk}</div><div class="stat-l">Hari Masuk</div></div>
