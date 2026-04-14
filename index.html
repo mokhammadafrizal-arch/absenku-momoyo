@@ -661,16 +661,8 @@ let OUTLETS = [
 ];
 
 // ===== ABSENSI HARI INI =====
-let ABSENSI = [
-  {nama:"Melany Devitasari",outlet:"Momoyo Sumbersari",status:"masuk",clockIn:"08:05",clockOut:"17:00",tgl:today(),lemburJam:0,shift:'pagi'},
-  {nama:"Shanaz Putri Indy",outlet:"Momoyo Sumbersari",status:"lembur",clockIn:"14:00",clockOut:"19:10",tgl:today(),lemburJam:2,shift:'siang'},
-  {nama:"Faizatul Lutvia",outlet:"Momoyo Sumbersari",status:"cuti",clockIn:null,clockOut:null,tgl:today(),lemburJam:0,shift:'pagi'},
-  {nama:"Dadang Farid Pamungkas",outlet:"Momoyo Sumbersari",status:"alpha",clockIn:null,clockOut:null,tgl:today(),lemburJam:0,shift:'siang'},
-];
-
-let NOTIFS = [
-  {id:1,nama:"Faizatul Lutvia",outlet:"Momoyo Sumbersari",tipe:"cuti",waktu:"09:20",ket:"Keperluan keluarga"},
-];
+let ABSENSI = [];
+let NOTIFS = [];
 
 // ===== DATA FEBRUARI 2026 =====
 // Dari gambar absen manual. Feb 2026: 28 hari, 1 Feb = Minggu.
@@ -1112,24 +1104,28 @@ async function ambilLibur() {
   }
 }
 
-function renderRiwayat(){
-  const shift=getShift(user.outlet,user.nama);
-  const ci=shift?shift.masuk:'08:00', co=shift?shift.pulang:'17:00';
-  const demo=[
-    {tgl:today(),st:'masuk',ci,co,lj:0},
-    {tgl:'27/03/2026',st:'lembur',ci,co:'19:10',lj:2},
-    {tgl:'26/03/2026',st:'masuk',ci,co,lj:0},
-    {tgl:'25/03/2026',st:'cuti',ci:null,co:null,lj:0},
-    {tgl:'24/03/2026',st:'libur',ci:null,co:null,lj:0},
-    {tgl:'22/03/2026',st:'masuk',ci,co,lj:0},
-    {tgl:'21/03/2026',st:'lembur',ci,co:'19:05',lj:2},
-  ];
-  document.getElementById('riwayat-list').innerHTML=demo.map(d=>`
-    <div class="log-item">
-      <div><div style="font-size:12px;font-weight:600">${d.tgl}</div>
-      <div class="log-meta">${d.ci?d.ci+' – '+(d.co||'...')+(d.lj>0?' · '+d.lj+'j lembur':''):'—'}</div></div>
-      <div style="margin-left:auto"><span class="badge ${bc(d.st)}">${d.st}</span></div>
-    </div>`).join('');
+async function renderRiwayat(){
+  const el = document.getElementById('riwayat-list');
+  el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">⏳ Memuat...</div>';
+  try {
+    const data = await sbGet('absensi',
+      'nama=eq.'+encodeURIComponent(user.nama)+
+      '&order=tanggal.desc&limit=7');
+    if(!data || data.length===0){
+      el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px">Belum ada riwayat</div>';
+      return;
+    }
+    el.innerHTML = data.map(a => {
+      const jamInfo = a.clock_in ? a.clock_in+' – '+(a.clock_out||'...')+(a.lembur_jam>0?' · '+a.lembur_jam+'j lembur':'') : '—';
+      return `<div class="log-item">
+        <div><div style="font-size:12px;font-weight:600">${a.tanggal}</div>
+        <div class="log-meta">${jamInfo}</div></div>
+        <div style="margin-left:auto"><span class="badge ${bc(a.status)}">${a.status}</span></div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px">Gagal memuat riwayat</div>';
+  }
 }
 
 // ===== PROFIL =====
