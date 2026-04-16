@@ -1575,12 +1575,7 @@ async function renderRekapBulanan() {
   container.innerHTML = '<div style="text-align:center;color:var(--text3);padding:20px;font-size:13px">⏳ Memuat data...</div>';
 
   try {
-    // Ambil absensi bulan ini - filter by bulan/tahun pattern
-    const absensi = await sbGet('absensi',
-      'tanggal=like.*%2F'+bulanStr+'%2F'+tahun+
-      '&order=tanggal');
-
-    // Ambil crew
+    // Ambil crew dulu
     const crewParam = outletFilter
       ? 'outlet_nama=eq.'+encodeURIComponent(outletFilter)+'&aktif=eq.true&order=outlet_nama,nama'
       : 'aktif=eq.true&order=outlet_nama,nama';
@@ -1589,6 +1584,17 @@ async function renderRekapBulanan() {
     if(!crews || crews.length === 0) {
       container.innerHTML = '<div style="text-align:center;color:var(--text3);padding:20px">Tidak ada data crew</div>';
       return;
+    }
+
+    // Ambil absensi per outlet (hindari limit 1000 Supabase free plan)
+    const outletList = [...new Set(crews.map(c => c.outlet_nama))];
+    let absensi = [];
+    for(const outlet of outletList) {
+      const rows = await sbGet('absensi',
+        'outlet_nama=eq.'+encodeURIComponent(outlet)+
+        '&tanggal=like.*%2F'+bulanStr+'%2F'+tahun+
+        '&order=tanggal');
+      absensi = absensi.concat(rows);
     }
 
     // Map absensi per nama+outlet (hindari konflik nama sama di outlet berbeda)
