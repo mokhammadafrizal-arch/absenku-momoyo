@@ -1591,16 +1591,18 @@ async function renderRekapBulanan() {
       return;
     }
 
-    // Map absensi per nama
+    // Map absensi per nama+outlet (hindari konflik nama sama di outlet berbeda)
     const absenMap = {};
     if(absensi) absensi.forEach(a => {
-      if(!absenMap[a.nama]) absenMap[a.nama] = [];
-      absenMap[a.nama].push(a);
+      const key = a.nama+'|'+(a.outlet_nama||'');
+      if(!absenMap[key]) absenMap[key] = [];
+      absenMap[key].push(a);
     });
 
     // Hitung per crew
-    function hitungCrew(nama) {
-      const rows = absenMap[nama] || [];
+    function hitungCrew(nama, outletNama) {
+      const key = nama+'|'+(outletNama||'');
+      const rows = absenMap[key] || [];
       let masuk=0, libur=0, cuti=0, alpha=0, lembur=0, telat=0, totalTelatMenit=0;
       rows.forEach(a => {
         if(a.status==='masuk'||a.status==='lembur') masuk++;
@@ -1648,7 +1650,7 @@ async function renderRekapBulanan() {
         </div>`;
 
       outletCrew.forEach(c => {
-        const s = hitungCrew(c.nama);
+        const s = hitungCrew(c.nama, outletNama);
         const hasAlpha = s.alpha > 0;
         const barColor = hasAlpha ? '#CC0000' : '#22c55e';
         const persen = Math.min(s.persen, 100);
