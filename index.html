@@ -2161,10 +2161,15 @@ const SB_KEY = 'sb_publishable_NO-Qo5vfbrdxJCZKA6zZJA_sQk6rico';
 // ===== SUPABASE HELPERS =====
 async function sbGet(table, params='') {
   const hasLimit = params.includes('limit=');
-  const limitStr = hasLimit ? '' : '&limit=5000';
   const separator = params ? '&' : '';
-  const res = await fetch(SB_URL+'/rest/v1/'+table+'?'+params+(hasLimit?'':separator+'limit=5000'), {
-    headers: {'apikey': SB_KEY, 'Authorization': 'Bearer '+SB_KEY}
+  const limitParam = hasLimit ? '' : separator+'limit=10000';
+  const res = await fetch(SB_URL+'/rest/v1/'+table+'?'+params+limitParam, {
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer '+SB_KEY,
+      'Range-Unit': 'items',
+      'Range': '0-9999'
+    }
   });
   const data = await res.json();
   if (!Array.isArray(data)) {
