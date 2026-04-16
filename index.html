@@ -1578,7 +1578,7 @@ async function renderRekapBulanan() {
     // Ambil absensi bulan ini - filter by bulan/tahun pattern
     const absensi = await sbGet('absensi',
       'tanggal=like.*%2F'+bulanStr+'%2F'+tahun+
-      '&order=tanggal&limit=5000');
+      '&order=tanggal');
 
     // Ambil crew
     const crewParam = outletFilter
@@ -2160,12 +2160,13 @@ const SB_KEY = 'sb_publishable_NO-Qo5vfbrdxJCZKA6zZJA_sQk6rico';
 
 // ===== SUPABASE HELPERS =====
 async function sbGet(table, params='') {
+  const hasLimit = params.includes('limit=');
+  const limitStr = hasLimit ? '' : '&limit=5000';
   const separator = params ? '&' : '';
-  const res = await fetch(SB_URL+'/rest/v1/'+table+'?'+params+separator+'limit=5000', {
+  const res = await fetch(SB_URL+'/rest/v1/'+table+'?'+params+(hasLimit?'':separator+'limit=5000'), {
     headers: {'apikey': SB_KEY, 'Authorization': 'Bearer '+SB_KEY}
   });
   const data = await res.json();
-  // Kalau Supabase return error object (bukan array), throw supaya catch bisa tangkap
   if (!Array.isArray(data)) {
     if (data && data.code) throw new Error('['+table+'] '+data.message+' (kode: '+data.code+')');
     return [];
