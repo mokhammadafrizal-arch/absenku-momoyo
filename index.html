@@ -526,9 +526,12 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
     <div id="shift-settings-area" style="background:var(--bg);border-radius:var(--rs);padding:10px;margin-bottom:14px"></div>
     <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">Kelola Crew</div>
     <div id="crew-list-settings" style="margin-bottom:10px"></div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <input class="input" id="new-crew-name" placeholder="Nama crew baru..." style="flex:1;margin-bottom:0"/>
+      <select class="input" id="new-crew-shift" style="width:auto;min-width:110px;margin-bottom:0"></select>
+    </div>
     <div style="display:flex;gap:8px;margin-bottom:14px">
-      <input class="input" id="new-crew-name" placeholder="Nama crew baru..." style="flex:1"/>
-      <button class="btn btn-green" style="width:auto;padding:10px 14px;font-size:13px" onclick="addCrew()">+ Tambah</button>
+      <button class="btn btn-green" style="flex:1;padding:10px 14px;font-size:13px" onclick="addCrew()">+ Tambah Crew</button>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline" style="flex:1" onclick="closeModal('modal-outlet')">Batal</button>
@@ -547,6 +550,11 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
     <div class="field">
       <label class="lbl">Nama</label>
       <input class="input" id="ec-nama" placeholder="Nama lengkap..." style="background:var(--surface2);color:var(--text3)" readonly>
+    </div>
+    <div class="field">
+      <label class="lbl">Shift</label>
+      <select class="input" id="ec-shift"></select>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Menentukan jam masuk/pulang & tombol Clock Out</div>
     </div>
     <div class="field">
       <label class="lbl">Tanggal Masuk Kerja</label>
@@ -2583,12 +2591,32 @@ async function openOutletModal(i){
 
 function renderCrewList(i){
   const o=OUTLETS[i];
-  document.getElementById('crew-list-settings').innerHTML=o.crew.length?o.crew.map((c,ci)=>`
+  // Populate dropdown shift Tambah Crew secara dinamis dari outlet.shifts
+  // (penting: outlet Batu punya 4 shift, non-Batu punya 2)
+  const addShiftSel = document.getElementById('new-crew-shift');
+  if(addShiftSel){
+    const curVal = addShiftSel.value;
+    addShiftSel.innerHTML = '<option value="" disabled selected>Shift...</option>' +
+      (o.shifts||[]).map(s=>`<option value="${s.id}">${s.label}</option>`).join('');
+    // preserve pilihan kalau masih valid untuk outlet ini
+    if(curVal && (o.shifts||[]).find(s=>s.id===curVal)) addShiftSel.value = curVal;
+  }
+  document.getElementById('crew-list-settings').innerHTML=o.crew.length?o.crew.map((c,ci)=>{
+    const shiftObj = (o.shifts||[]).find(s=>s.id===c.shift);
+    const shiftLabel = shiftObj ? shiftObj.label : (c.shift || '—');
+    const isPagi = (c.shift||'').toLowerCase().startsWith('pagi');
+    const chipCol = isPagi ? 'var(--blue)' : 'var(--purple)';
+    const chipBg  = isPagi ? 'var(--blue-bg)' : 'var(--purple-bg)';
+    const chipWarn = shiftObj ? '' : ' ⚠️';
+    return `
     <div class="crew-item">
       <div class="avatar" style="width:30px;height:30px;font-size:10px">${inisial(c.nama)}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:600">${c.nama}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:1px">${c.tanggal_masuk?'Masuk: '+c.tanggal_masuk:'-'} ${c.norek?'· Rek: '+c.norek:''}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap">
+          <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;color:${chipCol};background:${chipBg}">${shiftLabel}${chipWarn}</span>
+          <span style="font-size:10px;color:var(--text3)">${c.tanggal_masuk?'Masuk: '+c.tanggal_masuk:''} ${c.norek?'· Rek: '+c.norek:''}</span>
+        </div>
       </div>
       <button onclick="openEditCrew(${i},${ci})" style="color:var(--blue);background:var(--blue-bg);border:none;border-radius:var(--rs);padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;margin-right:4px">Edit</button>
       <button onclick="removeCrew(${i},${ci})" style="color:var(--red);background:var(--red-bg);border:none;border-radius:var(--rs);padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer">Hapus</button>
@@ -2599,7 +2627,8 @@ function renderCrewList(i){
         placeholder="Kosong = tier otomatis"
         style="flex:1;border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:11px;background:var(--bg);color:var(--text)"
         onchange="saveGajiCustom(${i},${ci},this.value)">
-    </div>`).join(''):'<div style="color:var(--text2);font-size:13px;padding:6px 0">Belum ada crew</div>';
+    </div>`;
+  }).join(''):'<div style="color:var(--text2);font-size:13px;padding:6px 0">Belum ada crew</div>';
 }
 
 // ===== EDIT CREW =====
@@ -2622,9 +2651,15 @@ function hitungTierInfo(tglMasuk, gajiCustom) {
 
 function openEditCrew(oi, ci) {
   _editCrewOi = oi; _editCrewCi = ci;
-  const c = OUTLETS[oi].crew[ci];
-  document.getElementById('edit-crew-outlet-label').textContent = OUTLETS[oi].nama;
+  const o = OUTLETS[oi];
+  const c = o.crew[ci];
+  document.getElementById('edit-crew-outlet-label').textContent = o.nama;
   document.getElementById('ec-nama').value = c.nama || '';
+  // Populate shift dropdown dari outlet.shifts (dinamis — handle outlet Batu yg punya 4 shift)
+  const shiftSel = document.getElementById('ec-shift');
+  shiftSel.innerHTML = '<option value="" disabled>-- pilih shift --</option>' +
+    (o.shifts||[]).map(s=>`<option value="${s.id}">${s.label} (${s.masuk}–${s.pulang})</option>`).join('');
+  shiftSel.value = c.shift || '';
   document.getElementById('ec-tgl-masuk').value = c.tanggal_masuk || '';
   document.getElementById('ec-norek').value = c.norek || '';
   document.getElementById('ec-atas-nama').value = c.atas_nama || '';
@@ -2642,21 +2677,34 @@ function openEditCrew(oi, ci) {
 async function saveEditCrew() {
   const oi = _editCrewOi, ci = _editCrewCi;
   if(oi<0||ci<0) return;
-  const c = OUTLETS[oi].crew[ci];
+  const o = OUTLETS[oi];
+  const c = o.crew[ci];
   const btn = document.getElementById('btn-save-edit-crew');
   btn.disabled = true; btn.textContent = 'Menyimpan...';
 
+  const shiftId = document.getElementById('ec-shift').value;
+  if(!shiftId){
+    showToast('Pilih shift!');
+    btn.disabled = false; btn.textContent = '💾 Simpan';
+    return;
+  }
+  if(!o.shifts.find(s=>s.id===shiftId)){
+    showToast('Shift tidak valid untuk outlet ini!');
+    btn.disabled = false; btn.textContent = '💾 Simpan';
+    return;
+  }
   const tglMasuk = document.getElementById('ec-tgl-masuk').value || null;
   const norek = document.getElementById('ec-norek').value.trim() || null;
   const atasNama = document.getElementById('ec-atas-nama').value.trim() || null;
   const gajiCustom = parseInt(document.getElementById('ec-gaji-custom').value) || null;
 
   const ok = await sbUpdate('crew',
-    {tanggal_masuk: tglMasuk, norek: norek, atas_nama: atasNama, gaji_custom: gajiCustom},
-    'nama=eq.'+encodeURIComponent(c.nama)+'&outlet_nama=eq.'+encodeURIComponent(OUTLETS[oi].nama)
+    {shift: shiftId, tanggal_masuk: tglMasuk, norek: norek, atas_nama: atasNama, gaji_custom: gajiCustom},
+    'nama=eq.'+encodeURIComponent(c.nama)+'&outlet_nama=eq.'+encodeURIComponent(o.nama)
   );
 
   if(ok) {
+    c.shift = shiftId;
     c.tanggal_masuk = tglMasuk;
     c.norek = norek;
     c.atas_nama = atasNama;
@@ -2673,19 +2721,26 @@ async function saveEditCrew() {
 async function addCrew(){
   const nama=document.getElementById('new-crew-name').value.trim();
   if(!nama){showToast('Masukkan nama!');return;}
+  const shiftSel=document.getElementById('new-crew-shift');
+  const shiftId=shiftSel.value;
+  if(!shiftId){showToast('Pilih shift dulu!');return;}
   const o=OUTLETS[outletSetIdx];
-  
+  // Validasi: shift harus valid untuk outlet ini
+  if(!o.shifts.find(s=>s.id===shiftId)){showToast('Shift tidak valid untuk outlet ini!');return;}
+
   // Simpan ke Supabase
   const ok = await sbInsert('crew', {
     nama: nama,
     outlet_nama: o.nama,
-    shift: 'pagi',
+    shift: shiftId,
     aktif: true
   });
-  
+
   if(ok){
-    o.crew.push({nama, shift:'pagi'});
+    o.crew.push({nama, shift:shiftId});
     document.getElementById('new-crew-name').value='';
+    // reset dropdown ke placeholder
+    shiftSel.value='';
     renderCrewList(outletSetIdx);
     showToast(nama+' ditambahkan ✓');
   } else {
